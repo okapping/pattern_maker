@@ -21,9 +21,9 @@ mv source.html.tmp source.html
 # docsへ移動
 mkdir -p docs
 mv source.html ./docs/index.html
-mv source.pyxapp ./docs/connect-four.pyxapp
+mv source.pyxapp ./docs/pattern-maker.pyxapp
 
 # distのクリーンアップ
 # rm -rf ./dist/*
 # appファイルの作成
-# pyxel app2exe ./docs/connect-four.pyxapp
+# pyxel app2exe ./docs/pattern-maker.pyxapp
