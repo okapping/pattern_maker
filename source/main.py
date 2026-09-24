@@ -51,16 +51,25 @@ class PatternEditor:
     PALETTE_X = 16
     PALETTE_Y = 211
 
+    # ツール
+    TOOL_PEN = 0
+    TOOL_BUCKET = 1
+    TOOL_CELL_SIZE = 14
+    TOOL_X = 16
+    TOOL_Y = 16
+
     def __init__(self):
         pyxel.init(
             self.SCREEN_WIDTH,
             self.SCREEN_HEIGHT,
-            title="Pyxel Pattern Editor",
-            fps=60,
+            title="Pattern Maker",
+            fps=30,
         )
 
         pyxel.mouse(True)
-
+        pyxel.load("assets/asset.pyxres")
+        # キャンバス
+        self.canvas = []
         # 現在のパターンサイズ
         self.pattern_size = 16
 
@@ -75,6 +84,10 @@ class PatternEditor:
 
         # 前回描画した論理座標
         self.previous_point = None
+
+        # 選択中のツール
+        self.selected_tool = self.TOOL_PEN
+        # self.selected_tool = self.TOOL_BUCKET
 
         # 初期キャンバス
         # 0番色、つまり黒で埋める
@@ -156,42 +169,6 @@ class PatternEditor:
         return (
             self.SCREEN_HEIGHT - self.frame_size
         ) // 2
-
-    # def logical_pixel_left(self, x):
-    #     """
-    #     論理上のドットxの画面上の左端。
-    #     """
-
-    #     return self.editor_x() + (
-    #         x * self.frame_size // self.pattern_size
-    #     )
-
-    # def logical_pixel_top(self, y):
-    #     """
-    #     論理上のドットyの画面上の上端。
-    #     """
-
-    #     return self.editor_y() + (
-    #         y * self.frame_size // self.pattern_size
-    #     )
-
-    # def logical_pixel_right(self, x):
-    #     """
-    #     論理上のドットxの画面上の右端。
-    #     """
-
-    #     return self.editor_x() + (
-    #         (x + 1) * self.frame_size // self.pattern_size
-    #     ) - 1
-
-    # def logical_pixel_bottom(self, y):
-    #     """
-    #     論理上のドットyの画面上の下端。
-    #     """
-
-    #     return self.editor_y() + (
-    #         (y + 1) * self.frame_size // self.pattern_size
-    #     ) - 1
 
     def screen_to_canvas(self, screen_x, screen_y):
         """
@@ -280,15 +257,41 @@ class PatternEditor:
         # 色変更
         # ---------------------------------------------
 
-        if pyxel.btnp(pyxel.KEY_LEFT):
+        if (
+            not pyxel.btn(pyxel.KEY_ALT)
+            and pyxel.btnp(pyxel.KEY_LEFT)
+        ):
             self.selected_color = (
                 self.selected_color - 1
             ) % 16
 
-        if pyxel.btnp(pyxel.KEY_RIGHT):
+        if (
+            not pyxel.btn(pyxel.KEY_ALT)
+            and pyxel.btnp(pyxel.KEY_RIGHT)
+        ):
             self.selected_color = (
                 self.selected_color + 1
             ) % 16
+
+        # ---------------------------------------------
+        # ツール変更
+        # ---------------------------------------------
+
+        if (
+            pyxel.btn(pyxel.KEY_ALT)
+            and pyxel.btnp(pyxel.KEY_LEFT)
+        ):
+            self.selected_tool = (
+                self.selected_tool - 1
+            ) % 2
+
+        if (
+            pyxel.btn(pyxel.KEY_ALT)
+            and pyxel.btnp(pyxel.KEY_RIGHT)
+        ):
+            self.selected_tool = (
+                self.selected_tool + 1
+            ) % 2
 
         # ---------------------------------------------
         # パレットクリック
@@ -306,6 +309,21 @@ class PatternEditor:
                 return
 
         # ---------------------------------------------
+        # ツールクリック
+        # ---------------------------------------------
+
+        if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
+            tool = self.get_select_tool(
+                pyxel.mouse_x,
+                pyxel.mouse_y,
+            )
+
+            if tool is not None:
+                self.selected_tool = tool
+                self.previous_point = None
+                return
+
+        # ---------------------------------------------
         # 左クリックで描画
         # ---------------------------------------------
 
@@ -316,20 +334,80 @@ class PatternEditor:
             )
 
             if current_point is not None:
-                if self.previous_point is None:
-                    self.paint_point(
-                        current_point[0],
-                        current_point[1],
-                        self.selected_color,
-                    )
-                else:
-                    self.paint_line(
-                        self.previous_point,
-                        current_point,
-                        self.selected_color,
-                    )
+                # ----------
+                # ペンツール
+                # ----------
+                if self.selected_tool == self.TOOL_PEN:
+                    if self.previous_point is None:
+                        self.paint_point(
+                            current_point[0],
+                            current_point[1],
+                            self.selected_color,
+                        )
+                    else:
+                        self.paint_line(
+                            self.previous_point,
+                            current_point,
+                            self.selected_color,
+                        )
 
-                self.previous_point = current_point
+                    self.previous_point = current_point
+                
+                # ----------
+                # バケツツール
+                # ----------
+                elif self.selected_tool == self.TOOL_BUCKET:
+                    start_x, start_y = current_point[0], current_point[1]
+
+                    # クリックしたセルの元の色
+                    target_color = self.canvas[start_y][start_x]
+
+                    # すでに選択色なら何もしない
+                    if target_color != self.selected_color:
+                        fill_cells = [(start_x, start_y)]
+                        visited = set()
+
+                        directions = [
+                            (0, -1),  # 上
+                            (-1, 0),  # 左
+                            (1, 0),   # 右
+                            (0, 1),   # 下
+                        ]
+
+                        while fill_cells:
+                            x, y = fill_cells.pop(0)
+
+                            # 同じセルを二重処理しない
+                            if (x, y) in visited:
+                                continue
+
+                            # 枠外ならスキップ
+                            if not (
+                                0 <= x < self.pattern_size
+                                and 0 <= y < self.pattern_size
+                            ):
+                                continue
+
+                            # 元の色ではないセルには到達しない
+                            if self.canvas[y][x] != target_color:
+                                continue
+
+                            visited.add((x, y))
+
+                            # セルを塗る
+                            self.paint_point(
+                                x,
+                                y,
+                                self.selected_color,
+                            )
+
+                            # 上下左右を追加
+                            for dx, dy in directions:
+                                next_x = x + dx
+                                next_y = y + dy
+
+                                if (next_x, next_y) not in visited:
+                                    fill_cells.append((next_x, next_y))
 
         # ---------------------------------------------
         # 右クリックまたはXキーで黒に戻す
@@ -442,7 +520,9 @@ class PatternEditor:
             self.draw_header()
             self.draw_pattern()
             self.draw_palette()
+            self.draw_tool()
             self.draw_footer()
+        pyxel.text(0, 0, f"{pyxel.frame_count}", 7)
 
     def draw_text_shadow(self, x, y, text, color=7):
         """
@@ -601,6 +681,49 @@ class PatternEditor:
             7,
         )
 
+    def draw_tool(self):
+        """
+        ツールを表示する。
+        """
+
+        for tool in range(2):
+            x = (
+                self.TOOL_X
+                + tool * self.TOOL_CELL_SIZE
+            )
+            pyxel.pal(5, 0)
+            pyxel.blt(
+                x+1,
+                self.TOOL_Y+1,
+                0,
+                tool * 16,
+                0,
+                self.TOOL_CELL_SIZE-2,
+                self.TOOL_CELL_SIZE-2,
+                10
+            )
+            pyxel.pal()
+            if tool == self.selected_tool:
+                pyxel.pal(5, 7)
+            pyxel.blt(
+                x,
+                self.TOOL_Y,
+                0,
+                tool * 16,
+                0,
+                self.TOOL_CELL_SIZE-2,
+                self.TOOL_CELL_SIZE-2,
+                10
+            )
+            pyxel.pal()
+
+        self.draw_text_shadow(
+            self.TOOL_X,
+            self.TOOL_Y-7,
+            "TOOLS",
+            7,
+        )
+
     def draw_footer(self):
         self.draw_text_shadow(
             8,
@@ -708,6 +831,37 @@ class PatternEditor:
         return None
 
     # =====================================================
+    # ツール
+    # =====================================================
+
+    def get_select_tool(self, mouse_x, mouse_y):
+        """
+        クリックされたツールを返す。
+        ツール外ならNoneを返す。
+        """
+
+        tool_width = (
+            self.TOOL_CELL_SIZE * 2
+        )
+
+        if not (
+            self.TOOL_X <= mouse_x
+            < self.TOOL_X + tool_width
+            and self.TOOL_Y <= mouse_y
+            < self.TOOL_Y + self.TOOL_CELL_SIZE
+        ):
+            return None
+
+        tool = (
+            mouse_x - self.TOOL_X
+        ) // self.TOOL_CELL_SIZE
+
+        if 0 <= tool < 2:
+            return tool
+
+        return None
+
+    # =====================================================
     # PNG出力
     # =====================================================
 
@@ -720,13 +874,6 @@ class PatternEditor:
         output_size = self.pattern_size
 
         p_image = pyxel.Image(output_size, output_size)
-        # image = Image.new(
-        #     "RGB",
-        #     (output_size, output_size),
-        #     (0, 0, 0),
-        # )
-
-        # pixels = image.load()
 
         for y in range(self.pattern_size):
             for x in range(self.pattern_size):
@@ -737,12 +884,6 @@ class PatternEditor:
                 green = (rgb >> 8) & 0xFF
                 blue = rgb & 0xFF
 
-                # pixels[x, y] = (
-                #     red,
-                #     green,
-                #     blue,
-                # )
-
                 p_image.set(x, y, [str(color_index)])
 
         filename = (
@@ -750,9 +891,6 @@ class PatternEditor:
             f"{self.pattern_size}_3x3.png"
         )
 
-        # image.save(filename)
-
-        # p_image.save("p_sample.png", 1)
         self.download_image(p_image, "p_sample.png")
         print(f"PNG saved: {filename}")
 
