@@ -53,7 +53,8 @@ class EditorScreen:
 
     # ツール
     TOOL_PEN = 0
-    TOOL_BUCKET = 1
+    TOOL_FILL = 1
+    TOOL_LINE = 2
     TOOL_CELL_SIZE = 14
     TOOL_X = 16
     TOOL_Y = 16
@@ -71,6 +72,8 @@ class EditorScreen:
         pyxel.load("assets/asset.pyxres")
         # キャンバス
         self.canvas = []
+        # 一時的に表示する仮想的なキャンバス
+        self.preview_canvas = []
         # 現在のパターンサイズ
         self.pattern_size = 16
 
@@ -85,14 +88,17 @@ class EditorScreen:
 
         # 前回描画した論理座標
         self.previous_point = None
+        # 開始倫理座標
+        self.starting_point = None
 
         # 選択中のツール
         self.selected_tool = self.TOOL_PEN
-        # self.selected_tool = self.TOOL_BUCKET
+        # self.selected_tool = self.TOOL_FILL
 
         # 初期キャンバス
         # 0番色、つまり黒で埋める
         self.create_canvas()
+        self.create_preview_canvas()
 
         # pyxel.run(self.update, self.draw)
 
@@ -102,11 +108,22 @@ class EditorScreen:
 
     def create_canvas(self):
         """
-        キャンバスを0番色、つまり黒で初期化する。
+        キャンバスを黒で初期化する。
         """
 
         self.canvas = [
             [0 for _ in range(self.pattern_size)]
+            for _ in range(self.pattern_size)
+        ]
+
+    def create_preview_canvas(self):
+        """
+        キャンバスをNoneで初期化する。
+        プレビューはNoneが有効
+        """
+
+        self.preview_canvas = [
+            [None for _ in range(self.pattern_size)]
             for _ in range(self.pattern_size)
         ]
 
@@ -118,6 +135,15 @@ class EditorScreen:
         for y in range(self.pattern_size):
             for x in range(self.pattern_size):
                 self.canvas[y][x] = 0
+
+    def clear_preview_canvas(self):
+        """
+        プレビュー用キャンバスをすべてNoneに戻す。
+        """
+
+        for y in range(self.pattern_size):
+            for x in range(self.pattern_size):
+                self.preview_canvas[y][x] = None
 
     def change_pattern_size(self, new_size):
         """
@@ -136,6 +162,7 @@ class EditorScreen:
         self.pattern_size = new_size
         self.previous_point = None
         self.create_canvas()
+        self.create_preview_canvas()
 
     def change_frame_size(self, new_size):
         """
@@ -328,17 +355,17 @@ class EditorScreen:
         # 左クリックで描画
         # ---------------------------------------------
 
-        if pyxel.btn(pyxel.MOUSE_BUTTON_LEFT):
-            current_point = self.screen_to_canvas(
-                pyxel.mouse_x,
-                pyxel.mouse_y,
-            )
+        current_point = self.screen_to_canvas(
+            pyxel.mouse_x,
+            pyxel.mouse_y,
+        )
 
-            if current_point is not None:
-                # ----------
-                # ペンツール
-                # ----------
-                if self.selected_tool == self.TOOL_PEN:
+        if current_point is not None:
+            # ----------
+            # ペンツール
+            # ----------
+            if self.selected_tool == self.TOOL_PEN:
+                if pyxel.btn(pyxel.MOUSE_BUTTON_LEFT):
                     if self.previous_point is None:
                         self.paint_point(
                             current_point[0],
@@ -353,11 +380,14 @@ class EditorScreen:
                         )
 
                     self.previous_point = current_point
+                else:
+                    self.previous_point = None
                 
-                # ----------
-                # バケツツール
-                # ----------
-                elif self.selected_tool == self.TOOL_BUCKET:
+            # ----------
+            # 塗りつぶしツール
+            # ----------
+            elif self.selected_tool == self.TOOL_FILL:
+                if pyxel.btn(pyxel.MOUSE_BUTTON_LEFT):
                     start_x, start_y = current_point[0], current_point[1]
 
                     # クリックしたセルの元の色
@@ -410,6 +440,38 @@ class EditorScreen:
                                 if (next_x, next_y) not in visited:
                                     fill_cells.append((next_x, next_y))
 
+            # ----------
+            # 線ツール
+            # ----------
+            elif self.selected_tool == self.TOOL_LINE:
+                if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
+                    self.starting_point = current_point
+                if self.starting_point is not None:
+                    if pyxel.btnr(pyxel.MOUSE_BUTTON_LEFT):
+                        self.paint_line(
+                            self.starting_point,
+                            current_point,
+                            self.selected_color,
+                        )
+                        self.starting_point = None
+                        self.clear_preview_canvas()
+                    if pyxel.btn(pyxel.MOUSE_BUTTON_LEFT):
+                        self.paint_line(
+                            self.starting_point,
+                            current_point,
+                            self.selected_color,
+                            preview=True
+                        )
+
+        # if pyxel.btn(pyxel.MOUSE_BUTTON_LEFT):
+            # current_point = self.screen_to_canvas(
+            #     pyxel.mouse_x,
+            #     pyxel.mouse_y,
+            # )
+
+            # if current_point is not None:
+
+
         # ---------------------------------------------
         # 右クリックまたはXキーで黒に戻す
         # ---------------------------------------------
@@ -448,6 +510,7 @@ class EditorScreen:
 
         if pyxel.btnp(pyxel.KEY_C):
             self.clear_canvas()
+            self.clear_preview_canvas()
 
         # ---------------------------------------------
         # ファイル出力
@@ -461,7 +524,7 @@ class EditorScreen:
     # 描画データ変更
     # =====================================================
 
-    def paint_point(self, x, y, color):
+    def paint_point(self, x, y, color, preview=False):
         """
         指定した1ドットだけを変更する。
 
@@ -475,15 +538,21 @@ class EditorScreen:
         ):
             return
 
-        self.canvas[y][x] = color
+        if not preview:
+            self.canvas[y][x] = color
+        else:
+            self.preview_canvas[y][x] = color
 
-    def paint_line(self, start, end, color):
+    def paint_line(self, start, end, color, preview=False):
         """
+        直線を引く
         前回位置と現在位置の間を補間して描画する。
-
         マウスを速く動かしたときに、途中のドットが
-        抜けるのを防ぐ。
+        抜けるのを防ぐのにも有効
         """
+        # プレビューの場合はキャンバスを初期化
+        if preview:
+            self.clear_preview_canvas()
 
         x1, y1 = start
         x2, y2 = end
@@ -494,7 +563,7 @@ class EditorScreen:
         distance = max(abs(dx), abs(dy))
 
         if distance == 0:
-            self.paint_point(x1, y1, color)
+            self.paint_point(x1, y1, color, preview)
             return
 
         for i in range(distance + 1):
@@ -506,7 +575,7 @@ class EditorScreen:
                 y1 + dy * i / distance
             )
 
-            self.paint_point(x, y, color)
+            self.paint_point(x, y, color, preview)
 
     # =====================================================
     # 描画
@@ -518,12 +587,13 @@ class EditorScreen:
         if self.preview_mode:
             self.draw_preview()
         else:
-            self.draw_header()
             self.draw_pattern()
+            self.draw_preview_pattern()
             self.draw_palette()
-            self.draw_tool()
+            self.draw_tools()
+            # self.draw_header()
             self.draw_footer()
-        pyxel.text(0, 0, f"{pyxel.frame_count}", 7)
+        # pyxel.text(0, 0, f"{self.preview_canvas}", 7)
 
     def draw_text_shadow(self, x, y, text, color=7):
         """
@@ -572,6 +642,7 @@ class EditorScreen:
         """
 
         editor_x = self.editor_x()
+        editor_y = self.editor_y()
 
         # 周囲を5×5で描画
         for tile_y in range(-2, 3):
@@ -580,7 +651,7 @@ class EditorScreen:
                     tile_x * self.frame_size
                 )
 
-                top = self.editor_y() + (
+                top = editor_y + (
                     tile_y * self.frame_size
                 )
 
@@ -589,20 +660,57 @@ class EditorScreen:
         # 中央の入力枠を強調
         pyxel.rectb(
             editor_x - 1,
-            self.editor_y() - 1,
+            editor_y - 1,
             self.frame_size + 2,
             self.frame_size + 2,
             7,
         )
 
-    def draw_tile(self, tile_x, tile_y):
+    def draw_preview_pattern(self):
+        """
+        パターンの入力中のプレビュー部分を描画する。
+        """
+
+        editor_x = self.editor_x()
+        editor_y = self.editor_y()
+
+        self.draw_tile(editor_x, editor_y, preview=True)
+        # 周囲を5×5で描画
+        # for tile_y in range(-2, 3):
+        #     for tile_x in range(-2, 3):
+        #         left = editor_x + (
+        #             tile_x * self.frame_size
+        #         )
+
+        #         top = self.editor_y() + (
+        #             tile_y * self.frame_size
+        #         )
+
+        #         self.draw_tile(left, top)
+
+        # 中央の入力枠を強調
+        # pyxel.rectb(
+        #     editor_x - 1,
+        #     self.editor_y() - 1,
+        #     self.frame_size + 2,
+        #     self.frame_size + 2,
+        #     7,
+        # )
+
+    def draw_tile(self, tile_x, tile_y, preview=False):
         """
         1枚分のパターンを描画する。
         """
 
+        if not preview:
+            canvas = self.canvas
+        else:
+            canvas = self.preview_canvas
         for y in range(self.pattern_size):
             for x in range(self.pattern_size):
-                color = self.canvas[y][x]
+                if canvas[y][x] is None:
+                    continue
+                color = canvas[y][x]
 
                 left = tile_x + (
                     x * self.frame_size
@@ -671,7 +779,7 @@ class EditorScreen:
                     self.PALETTE_Y - 1,
                     self.PALETTE_CELL_SIZE,
                     self.PALETTE_CELL_SIZE,
-                    7,
+                    7 if pyxel.frame_count // 20 % 2 == 0 else 10,
                 )
 
         # パレットサイズ表示
@@ -682,12 +790,12 @@ class EditorScreen:
             7,
         )
 
-    def draw_tool(self):
+    def draw_tools(self):
         """
         ツールを表示する。
         """
 
-        for tool in range(2):
+        for tool in range(3):
             x = (
                 self.TOOL_X
                 + tool * self.TOOL_CELL_SIZE
@@ -842,7 +950,7 @@ class EditorScreen:
         """
 
         tool_width = (
-            self.TOOL_CELL_SIZE * 2
+            self.TOOL_CELL_SIZE * 3
         )
 
         if not (
@@ -857,7 +965,7 @@ class EditorScreen:
             mouse_x - self.TOOL_X
         ) // self.TOOL_CELL_SIZE
 
-        if 0 <= tool < 2:
+        if 0 <= tool < 3:
             return tool
 
         return None
@@ -909,30 +1017,28 @@ class EditorScreen:
             f"{self.pattern_size}.txt"
         )
 
+        output = "pyxel.image(0).set(0, 0, [\n"
+
+        for y in range(self.pattern_size):
+            row = ""
+
+            for x in range(self.pattern_size):
+                color = self.canvas[y][x]
+                row += format(color, "x")
+
+            comma = "," if y < self.pattern_size - 1 else ""
+            output += f'    "{row}"{comma}\n'
+
+        output += "])\n"
+
+        # ファイルに書き込む
         with open(filename, "w", encoding="utf-8") as file:
-            file.write(
-                "pyxel.image(0).set(0, 0, [\n"
-            )
+            file.write(output)
 
-            for y in range(self.pattern_size):
-                row = ""
+        # 書き込んだ内容を画面に表示
+        print(output)
 
-                for x in range(self.pattern_size):
-                    color = self.canvas[y][x]
-                    row += format(color, "x")
-
-                if y < self.pattern_size - 1:
-                    comma = ","
-                else:
-                    comma = ""
-
-                file.write(
-                    f'    "{row}"{comma}\n'
-                )
-
-            file.write("])\n")
-
-        print(f"Text saved: {filename}")
+        # print(f"Text saved: {filename}")
 
     def download_image(self, image, filename):
         path = "/tmp/download.png"
