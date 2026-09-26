@@ -24,8 +24,8 @@ class PatternMaker:
 
         self.screens = {
             self.SCREEN_TITLE: TitleScreen(self),
-            self.SCREEN_LIST: ListScreen(self),
-            self.SCREEN_EDITOR: EditorScreen(self)
+            self.SCREEN_LIST: None,
+            self.SCREEN_EDITOR: None
         }
         self.current_screen = self.SCREEN_TITLE
 

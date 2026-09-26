@@ -1,4 +1,7 @@
 import pyxel
+from .list import ListScreen
+
+from utils import *
 
 PTN_SIZE = 16
 PTN_KATAKUSA = (0, 32)
@@ -26,6 +29,7 @@ class TitleScreen:
     def update(self):
         app = self.app
         if pyxel.btnr(pyxel.MOUSE_BUTTON_LEFT):
+            app.screens[app.SCREEN_LIST] = ListScreen(app)
             app.change_screen(app.SCREEN_LIST)
     
     def draw(self):
@@ -47,21 +51,60 @@ class TitleScreen:
         # タイトル
         # --------------------
         w, h, = 200, 120
-        pyxel.rect(
+        pyxel.blt(
             (pyxel.width // 2) - (w // 2),
             30,
+            2,
+            0,
+            0,
             w,
             h,
-            3
+            7
+
         )
         # --------------------
         # 文字
         # --------------------
         msg = "PATTERN MAKER"
         pyxel.text(
-            (pyxel.width // 2) - (len(msg)*pyxel.FONT_WIDTH // 2),
-            90,
+            (pyxel.width // 2) - (len(msg)*pyxel.FONT_WIDTH // 2)+1,
+            20+1,
             msg,
             7
+        )
+        pyxel.text(
+            (pyxel.width // 2) - (len(msg)*pyxel.FONT_WIDTH // 2),
+            20,
+            msg,
+            0
+        )
+
+
+        # --------------------
+        # Pyxel LOGO
+        # --------------------
+        msg = "Made with"
+        pyxel.rect(
+            16,
+            pyxel.height-16-16-pyxel.FONT_HEIGHT-1,
+            len(msg)*pyxel.FONT_WIDTH,
+            pyxel.FONT_HEIGHT,
+            5
+        )
+        draw_text_shadow(
+            16,
+            pyxel.height-16-16-pyxel.FONT_HEIGHT-1,
+            "Made with",
+            7
+        )
+        pyxel.blt(
+            16,
+            pyxel.height-16-16,
+            1,
+            0,
+            0,
+            38,
+            16,
+            0
         )
         pyxel.text(0, 0, "TITLE", 7)

@@ -4,6 +4,8 @@ import pyxel
 # from PIL import Image
 # from js import window, Blob, URL, document
 from js import Blob, URL, Uint8Array, document
+
+import utils
 # =========================================================
 # Pyxel標準16色
 # =========================================================
@@ -61,6 +63,7 @@ class EditorScreen:
 
     def __init__(self, app):
         self.app = app
+        # self.id = id
         # pyxel.init(
         #     self.SCREEN_WIDTH,
         #     self.SCREEN_HEIGHT,
@@ -168,9 +171,12 @@ class EditorScreen:
         """
         中央の入力枠の表示サイズだけを変更する。
         パターンの論理サイズは変更しない。
+        FRAME_SIZE_LIST = [64, 96, 128, 160]
         """
 
-        if new_size not in self.FRAME_SIZE_LIST:
+        # if new_size not in self.FRAME_SIZE_LIST:
+        #     return
+        if not (52 <= new_size < 200):
             return
 
         self.frame_size = new_size
@@ -281,6 +287,10 @@ class EditorScreen:
         if pyxel.btnp(pyxel.KEY_R):
             self.change_frame_size(160)
 
+        if pyxel.btnp(pyxel.KEY_UP, hold=15, repeat=1):
+            self.change_frame_size(self.frame_size + 4)
+        if pyxel.btnp(pyxel.KEY_DOWN, hold=15, repeat=1):
+            self.change_frame_size(self.frame_size - 4)
         # ---------------------------------------------
         # 色変更
         # ---------------------------------------------
@@ -995,12 +1005,14 @@ class EditorScreen:
 
                 p_image.set(x, y, [str(color_index)])
 
-        filename = (
-            f"pattern_{self.pattern_size}x"
-            f"{self.pattern_size}_3x3.png"
-        )
+        # filename = (
+        #     f"pattern_{self.pattern_size}x"
+        #     f"{self.pattern_size}_3x3.png"
+        # )
 
-        self.download_image(p_image, "p_sample.png")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"pattern_{timestamp}.png"
+        self.download_image(p_image, filename)
         print(f"PNG saved: {filename}")
 
     # =====================================================
